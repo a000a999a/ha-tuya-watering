@@ -1,0 +1,67 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Select Tuya Account",
+        "data": { "core_entry_id": "Tuya Home Core account" }
+      },
+      "add_valve": {
+        "title": "Add Valve",
+        "description": "Configure your first watering valve. Gateway fields are optional — leave blank to use Tuya Cloud control only.",
+        "data": {
+          "name":             "Valve name",
+          "device_id":        "Tuya Device ID",
+          "gateway_id":       "Gateway ID (local control)",
+          "gateway_ip":       "Gateway IP address (local control)",
+          "gateway_key":      "Gateway local key (local control)",
+          "sub_cid":          "Sub-device CID (local control)",
+          "default_duration": "Default duration (seconds)",
+          "dps_duration":     "DPS code — duration (GIEX default: 104)",
+          "dps_trigger":      "DPS code — start trigger (GIEX default: 116)",
+          "dps_stop":         "DPS code — stop (GIEX default: 1)"
+        }
+      }
+    },
+    "error": {
+      "valve_fields_required": "Valve name and Device ID are required."
+    },
+    "abort": {
+      "no_core_entry": "Tuya Home Core is not installed. Install and configure it first.",
+      "no_valves":     "No valves configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Manage Valves",
+        "menu_options": {
+          "add_valve":    "Add a valve",
+          "remove_valve": "Remove a valve"
+        }
+      },
+      "add_valve": {
+        "title": "Add Valve",
+        "description": "Gateway fields are optional — leave blank for cloud-only control.",
+        "data": {
+          "name":             "Valve name",
+          "device_id":        "Tuya Device ID",
+          "gateway_id":       "Gateway ID",
+          "gateway_ip":       "Gateway IP address",
+          "gateway_key":      "Gateway local key",
+          "sub_cid":          "Sub-device CID",
+          "default_duration": "Default duration (seconds)",
+          "dps_duration":     "DPS code — duration",
+          "dps_trigger":      "DPS code — start trigger",
+          "dps_stop":         "DPS code — stop"
+        }
+      },
+      "remove_valve": {
+        "title": "Remove Valve",
+        "data": { "valve_index": "Select valve to remove" }
+      }
+    },
+    "error": {
+      "valve_fields_required": "Valve name and Device ID are required."
+    }
+  }
+}

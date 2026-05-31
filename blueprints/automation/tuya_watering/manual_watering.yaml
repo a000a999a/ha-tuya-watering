@@ -1,0 +1,53 @@
+blueprint:
+  name: Manual Watering Trigger
+  description: >
+    Opens selected valves for the configured duration when triggered.
+    No weather check — use for on-demand or button-triggered watering.
+    Trigger can be a button, a helper toggle, a dashboard call, or any HA event.
+  domain: automation
+  source_url: https://github.com/a000a999a/ha-tuya-watering/blob/main/blueprints/automation/tuya_watering/manual_watering.yaml
+
+  input:
+    trigger_entity:
+      name: Trigger Entity
+      description: >
+        Entity whose state change fires the watering (e.g. an input_button,
+        input_boolean turning on, or a virtual switch). Leave blank and add
+        your own trigger after importing the blueprint.
+      default: {}
+      selector:
+        entity: {}
+
+    valve_entities:
+      name: Valve(s)
+      description: One or more valves from the Tuya Watering integration.
+      selector:
+        entity:
+          multiple: true
+          domain: switch
+          integration: tuya_watering
+
+    duration_minutes:
+      name: Duration (minutes)
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: min
+
+trigger:
+  - platform: state
+    entity_id: !input trigger_entity
+
+action:
+  - action: switch.turn_on
+    target:
+      entity_id: !input valve_entities
+
+  - delay:
+      minutes: !input duration_minutes
+
+  - action: switch.turn_off
+    target:
+      entity_id: !input valve_entities

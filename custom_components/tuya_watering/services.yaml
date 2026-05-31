@@ -1,0 +1,26 @@
+open_valve:
+  name: Open Valve
+  description: Open a watering valve for a specified duration. Uses the valve's configured default duration if not specified.
+  target:
+    entity:
+      domain: switch
+      integration: tuya_watering
+  fields:
+    duration:
+      name: Duration
+      description: How long to run the valve (seconds). Overrides the valve's default duration.
+      required: false
+      example: 120
+      selector:
+        number:
+          min: 10
+          max: 3600
+          unit_of_measurement: s
+
+close_valve:
+  name: Close Valve
+  description: Close a watering valve immediately.
+  target:
+    entity:
+      domain: switch
+      integration: tuya_watering

@@ -1,0 +1,12 @@
+{
+  "domain": "tuya_watering",
+  "name": "Tuya Watering",
+  "version": "0.1.0",
+  "documentation": "https://github.com/a000a999a/ha-tuya-watering",
+  "issue_tracker": "https://github.com/a000a999a/ha-tuya-watering/issues",
+  "requirements": ["tinytuya>=1.15.0"],
+  "dependencies": ["tuya_home_core"],
+  "codeowners": ["@a000a999a"],
+  "iot_class": "local_push",
+  "config_flow": true
+}

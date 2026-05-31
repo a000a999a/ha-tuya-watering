@@ -1,0 +1,135 @@
+blueprint:
+  name: Weather-Based Watering
+  description: >
+    Opens selected valves at a scheduled time, then closes them after the configured
+    duration. Skips automatically when rain probability exceeds the threshold or
+    stormy conditions are forecast for today or tomorrow.
+    Requires the Tuya Watering integration and any HA weather entity.
+  domain: automation
+  source_url: https://github.com/a000a999a/ha-tuya-watering/blob/main/blueprints/automation/tuya_watering/weather_based_watering.yaml
+
+  input:
+    weather_entity:
+      name: Weather Entity
+      description: Any HA weather entity (MeteoSwiss, OpenWeatherMap, AccuWeather, etc.)
+      selector:
+        entity:
+          domain: weather
+
+    valve_entities:
+      name: Valve(s)
+      description: One or more valves from the Tuya Watering integration.
+      selector:
+        entity:
+          multiple: true
+          domain: switch
+          integration: tuya_watering
+
+    run_time:
+      name: Start Time
+      description: Time of day to start watering.
+      selector:
+        time: {}
+
+    duration_minutes:
+      name: Duration (minutes)
+      description: How long to water.
+      default: 2
+      selector:
+        number:
+          min: 1
+          max: 60
+          unit_of_measurement: min
+
+    rain_probability_threshold:
+      name: Rain Probability Threshold (%)
+      description: Skip watering if today's or tomorrow's rain probability is at or above this value.
+      default: 40
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+
+    storm_conditions:
+      name: Storm Conditions to Skip
+      description: Watering is skipped if today's forecast matches any of these conditions.
+      default:
+        - rainy
+        - pouring
+        - lightning-rainy
+        - lightning
+        - hail
+        - snowy-rainy
+      selector:
+        select:
+          multiple: true
+          options:
+            - rainy
+            - pouring
+            - lightning-rainy
+            - lightning
+            - hail
+            - snowy-rainy
+            - snowy
+            - windy-variant
+
+trigger:
+  - platform: time
+    at: !input run_time
+
+variables:
+  weather_entity:              !input weather_entity
+  rain_probability_threshold:  !input rain_probability_threshold
+  storm_conditions:            !input storm_conditions
+
+action:
+  - action: weather.get_forecasts
+    data:
+      type: daily
+    target:
+      entity_id: !input weather_entity
+    response_variable: forecast_response
+
+  - if:
+      - condition: template
+        value_template: >
+          {% set fc = forecast_response[weather_entity]['forecast'] %}
+          {% if not fc or fc | length == 0 %}
+            false
+          {% else %}
+            {% set today    = fc[0] %}
+            {% set tomorrow = fc[1] if fc | length > 1 else today %}
+            {% set prob_today    = (today.get('precipitation_probability')    or 0) | int %}
+            {% set prob_tomorrow = (tomorrow.get('precipitation_probability') or 0) | int %}
+            {{ today.get('condition', '') not in storm_conditions
+               and prob_today    < rain_probability_threshold
+               and prob_tomorrow < rain_probability_threshold }}
+          {% endif %}
+
+    then:
+      - action: switch.turn_on
+        target:
+          entity_id: !input valve_entities
+
+      - delay:
+          minutes: !input duration_minutes
+
+      - action: switch.turn_off
+        target:
+          entity_id: !input valve_entities
+
+    else:
+      - action: logbook.log
+        data:
+          name: Tuya Watering
+          message: >
+            Watering skipped —
+            {% set fc = forecast_response[weather_entity]['forecast'] %}
+            {% if fc and fc | length > 0 %}
+              {% set today = fc[0] %}
+              {% set prob  = (today.get('precipitation_probability') or 0) | int %}
+              condition={{ today.get('condition','?') }}, rain={{ prob }}%
+            {% else %}
+              forecast unavailable
+            {% endif %}
