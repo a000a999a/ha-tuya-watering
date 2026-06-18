@@ -24,14 +24,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if DOMAIN_CORE not in hass.data or core_entry_id not in hass.data[DOMAIN_CORE]:
         raise ConfigEntryNotReady("Tuya Home Core is not loaded yet.")
 
-    core      = hass.data[DOMAIN_CORE][core_entry_id]
-    tuya_client = core["api"].client
-
     coordinator = WateringCoordinator(hass)
 
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
-        "tuya_client": tuya_client,
     }
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

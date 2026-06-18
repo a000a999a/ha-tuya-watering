@@ -10,7 +10,7 @@ Schedules and weather logic live in blueprints, NOT in this integration.
 ## Checklist Additions
 - [ ] NEVER call gw.status() — see master CLAUDE.md CRITICAL section
 - [ ] switch.py unique_id must use config_entry.entry_id + valve index, NOT IP or name
-- [ ] Local gateway fields (ip, key, gw_id, sub_cid) are all optional — cloud fallback must work alone
+- [ ] Local gateway fields (ip, key, gw_id, sub_cid) are required — no cloud fallback (Tuya Cloud API cannot trigger DPS 116; returns error 2008)
 - [ ] DPS codes must come from config entry (defaults: duration=104, trigger=116, stop=1)
 - [ ] turn_on() must set duration DPS first, then trigger DPS, with 0.5s sleep between
 - [ ] All local tinytuya calls must have socketTimeout(8) set

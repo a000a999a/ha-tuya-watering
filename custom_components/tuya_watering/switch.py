@@ -13,12 +13,10 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import ValveAPI
 from .const import (
-    CONF_CORE_ENTRY_ID,
     CONF_DEVICE_ID,
     CONF_VALVES,
     CONF_VALVE_NAME,
     DOMAIN,
-    DOMAIN_CORE,
 )
 from .coordinator import WateringCoordinator
 
@@ -32,11 +30,10 @@ async def async_setup_entry(
 ) -> None:
     data        = hass.data[DOMAIN][entry.entry_id]
     coordinator = data["coordinator"]
-    tuya_client = data["tuya_client"]
     valves      = entry.options.get(CONF_VALVES, [])
 
     entities = [
-        ValveSwitch(entry, valve, idx, coordinator, tuya_client)
+        ValveSwitch(entry, valve, idx, coordinator)
         for idx, valve in enumerate(valves)
     ]
     async_add_entities(entities)
@@ -56,11 +53,10 @@ class ValveSwitch(SwitchEntity):
         valve: dict,
         index: int,
         coordinator: WateringCoordinator,
-        tuya_client: Any,
     ) -> None:
         self._valve       = valve
         self._coordinator = coordinator
-        self._api         = ValveAPI(valve, tuya_client)
+        self._api         = ValveAPI(valve)
         self._attr_unique_id = f"{entry.entry_id}_{index}"
         self._entry_id       = entry.entry_id
 

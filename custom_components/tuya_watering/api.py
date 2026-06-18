@@ -1,10 +1,9 @@
-"""Valve control API — local tinytuya primary, Tuya Cloud fallback."""
+"""Valve control API — local tinytuya only."""
 
 from __future__ import annotations
 
 import logging
 import time
-from typing import Any
 
 from .const import (
     CONF_DEFAULT_DURATION,
@@ -23,15 +22,6 @@ from .const import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-
-
-def _has_local_config(valve: dict) -> bool:
-    return bool(
-        valve.get(CONF_GATEWAY_IP)
-        and valve.get(CONF_GATEWAY_KEY)
-        and valve.get(CONF_GATEWAY_ID)
-        and valve.get(CONF_SUB_CID)
-    )
 
 
 def _local_open(valve: dict, seconds: int) -> bool:
@@ -103,79 +93,37 @@ def _local_close(valve: dict) -> bool:
     return r is not None and "Err" not in str(r)
 
 
-def _cloud_open(tuya_client: Any, device_id: str, seconds: int) -> bool:
-    """Cloud fallback: open valve via Tuya IoT Platform."""
-    try:
-        resp = tuya_client.cloudrequest(
-            f"/v1.0/iot-03/devices/{device_id}/commands",
-            action="POST",
-            post={"commands": [
-                {"code": "switch",    "value": True},
-                {"code": "countdown", "value": seconds},
-            ]},
-        )
-        return bool(resp and resp.get("success"))
-    except Exception as err:
-        _LOGGER.warning("Cloud open failed: %s", err)
-        return False
-
-
-def _cloud_close(tuya_client: Any, device_id: str) -> bool:
-    """Cloud fallback: close valve via Tuya IoT Platform."""
-    try:
-        resp = tuya_client.cloudrequest(
-            f"/v1.0/iot-03/devices/{device_id}/commands",
-            action="POST",
-            post={"commands": [
-                {"code": "switch",    "value": False},
-                {"code": "countdown", "value": 0},
-            ]},
-        )
-        return bool(resp and resp.get("success"))
-    except Exception as err:
-        _LOGGER.warning("Cloud close failed: %s", err)
-        return False
-
-
 class ValveAPI:
-    """Orchestrates local + cloud valve control for a single valve config."""
+    """Local-only valve control for a single valve config."""
 
-    def __init__(self, valve: dict, tuya_client: Any) -> None:
-        self._valve  = valve
-        self._client = tuya_client
+    def __init__(self, valve: dict) -> None:
+        self._valve = valve
 
     def open(self, duration: int | None = None) -> bool:
-        seconds  = duration or self._valve.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION)
-        dev_id   = self._valve[CONF_DEVICE_ID]
-        name     = self._valve.get("name", dev_id)
+        seconds = duration or self._valve.get(CONF_DEFAULT_DURATION, DEFAULT_DURATION)
+        name    = self._valve.get("name", self._valve[CONF_DEVICE_ID])
 
-        if _has_local_config(self._valve):
-            try:
-                ok = _local_open(self._valve, seconds)
-                if ok:
-                    _LOGGER.debug("%s: opened locally (%ds)", name, seconds)
-                    return True
-                _LOGGER.warning("%s: local open failed, trying cloud", name)
-            except Exception as err:
-                _LOGGER.warning("%s: local open error: %s — trying cloud", name, err)
-
-        ok = _cloud_open(self._client, dev_id, seconds)
-        _LOGGER.debug("%s: cloud open %s (%ds)", name, "ok" if ok else "FAILED", seconds)
-        return ok
+        try:
+            ok = _local_open(self._valve, seconds)
+            if ok:
+                _LOGGER.debug("%s: opened locally (%ds)", name, seconds)
+            else:
+                _LOGGER.error("%s: local open failed", name)
+            return ok
+        except Exception as err:
+            _LOGGER.error("%s: local open error: %s", name, err)
+            return False
 
     def close(self) -> bool:
-        dev_id = self._valve[CONF_DEVICE_ID]
-        name   = self._valve.get("name", dev_id)
+        name = self._valve.get("name", self._valve[CONF_DEVICE_ID])
 
-        if _has_local_config(self._valve):
-            try:
-                ok = _local_close(self._valve)
-                if ok:
-                    _LOGGER.debug("%s: closed locally", name)
-            except Exception as err:
-                _LOGGER.warning("%s: local close error: %s", name, err)
-
-        # Always also send cloud close as a safety net
-        _cloud_close(self._client, dev_id)
-        _LOGGER.debug("%s: cloud close sent", name)
-        return True
+        try:
+            ok = _local_close(self._valve)
+            if ok:
+                _LOGGER.debug("%s: closed locally", name)
+            else:
+                _LOGGER.warning("%s: local close returned failure", name)
+            return ok
+        except Exception as err:
+            _LOGGER.warning("%s: local close error: %s", name, err)
+            return False
