@@ -51,17 +51,19 @@ def _local_open(valve: dict, seconds: int) -> bool:
     dps_trig = str(valve.get(CONF_DPS_TRIGGER, 116))
 
     r1 = sub.set_multiple_values({dps_dur: seconds})
-    if r1 is None or "Err" in str(r1):
+    # None = sent with no ACK (normal for battery ZigBee end devices); only dict with "Err" is a real failure
+    if isinstance(r1, dict) and "Err" in r1:
         _LOGGER.warning("Local: DPS duration set failed: %s", r1)
         return False
 
     time.sleep(DPS_SET_DELAY)
 
     r2 = sub.set_multiple_values({dps_trig: True})
-    ok = r2 is not None and isinstance(r2, dict) and "dps" in r2
-    if not ok:
+    # Same: None is acceptable; only explicit error fails
+    if isinstance(r2, dict) and "Err" in r2:
         _LOGGER.warning("Local: DPS trigger failed: %s", r2)
-    return ok
+        return False
+    return True
 
 
 def _local_close(valve: dict) -> bool:
@@ -90,7 +92,7 @@ def _local_close(valve: dict) -> bool:
     dps_trig = str(valve.get(CONF_DPS_TRIGGER, 116))
 
     r = sub.set_multiple_values({dps_stop: False, dps_trig: False})
-    return r is not None and "Err" not in str(r)
+    return not (isinstance(r, dict) and "Err" in r)
 
 
 class ValveAPI:
