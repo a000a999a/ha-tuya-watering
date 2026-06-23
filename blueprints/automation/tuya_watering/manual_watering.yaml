@@ -40,8 +40,13 @@ trigger:
   - platform: state
     entity_id: !input trigger_entity
 
+variables:
+  duration_minutes: !input duration_minutes
+
 action:
   - action: switch.turn_on
+    data:
+      duration: "{{ (duration_minutes | float * 60) | int }}"
     target:
       entity_id: !input valve_entities
 

@@ -82,6 +82,7 @@ variables:
   weather_entity:              !input weather_entity
   rain_probability_threshold:  !input rain_probability_threshold
   storm_conditions:            !input storm_conditions
+  duration_minutes:            !input duration_minutes
 
 action:
   - action: weather.get_forecasts
@@ -109,6 +110,8 @@ action:
 
     then:
       - action: switch.turn_on
+        data:
+          duration: "{{ (duration_minutes | float * 60) | int }}"
         target:
           entity_id: !input valve_entities
 
