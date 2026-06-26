@@ -5,10 +5,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import voluptuous as vol
+
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers import entity_platform
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import ValveAPI
@@ -37,6 +40,14 @@ async def async_setup_entry(
         for idx, valve in enumerate(valves)
     ]
     async_add_entities(entities)
+
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        "open_valve",
+        {vol.Optional("duration"): vol.Coerce(int)},
+        "turn_on",
+    )
+    platform.async_register_entity_service("close_valve", {}, "turn_off")
 
 
 class ValveSwitch(SwitchEntity):
