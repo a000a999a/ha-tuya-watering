@@ -75,8 +75,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 f"<p><strong>{valve} {run}</strong> was skipped"
                 + (f" at {time_str}" if time_str else "")
                 + ".</p>"
-                f"<p>Today: {condition}, rain {today_pct}%<br>"
-                f"Tomorrow: rain {tmrw_pct}%</p>"
+                f"<p>Next 6h: {condition}, rain up to {today_pct}%</p>"
                 f"<p>Trigger manually if needed: call "
                 f"<code>tuya_watering.open_valve</code> on "
                 f"<code>switch.{valve.lower()}</code>.</p>"
