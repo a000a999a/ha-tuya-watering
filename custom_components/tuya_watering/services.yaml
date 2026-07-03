@@ -24,3 +24,54 @@ close_valve:
     entity:
       domain: switch
       integration: tuya_watering
+
+notify_skip:
+  name: Notify Skip
+  description: Send a skip-notification email when watering is skipped due to rain forecast. Called automatically by watering automations.
+  fields:
+    valve:
+      name: Valve
+      description: Valve name (e.g. "Terrasse")
+      required: true
+      example: "Terrasse"
+      selector:
+        text:
+    run:
+      name: Run
+      description: Which run was skipped (e.g. "Run 1")
+      required: true
+      example: "Run 1"
+      selector:
+        text:
+    time:
+      name: Scheduled time
+      description: The time the run was scheduled for
+      required: false
+      example: "00:15"
+      selector:
+        text:
+    today_condition:
+      name: Today's condition
+      description: Weather condition string from the forecast
+      required: false
+      example: "cloudy"
+      selector:
+        text:
+    today_rain_pct:
+      name: Today's rain probability (%)
+      required: false
+      example: 60
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    tomorrow_rain_pct:
+      name: Tomorrow's rain probability (%)
+      required: false
+      example: 45
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"

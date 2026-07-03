@@ -33,10 +33,12 @@
   "options": {
     "step": {
       "init": {
-        "title": "Manage Valves",
+        "title": "Tuya Watering Settings",
         "menu_options": {
-          "add_valve":    "Add a valve",
-          "remove_valve": "Remove a valve"
+          "add_valve":          "Add a valve",
+          "remove_valve":       "Remove a valve",
+          "edit_smtp":          "Edit SMTP settings",
+          "edit_notifications": "Edit notification recipient"
         }
       },
       "add_valve": {
@@ -58,6 +60,23 @@
       "remove_valve": {
         "title": "Remove Valve",
         "data": { "valve_index": "Select valve to remove" }
+      },
+      "edit_smtp": {
+        "title": "SMTP Settings",
+        "description": "Email server used to send watering skip notifications.",
+        "data": {
+          "smtp_host":     "SMTP server",
+          "smtp_port":     "SMTP port",
+          "smtp_sender":   "Sender email address",
+          "smtp_password": "Sender password / app password"
+        }
+      },
+      "edit_notifications": {
+        "title": "Notification Recipient",
+        "description": "Email address to notify when watering is skipped due to rain forecast. Leave blank to disable skip notifications.",
+        "data": {
+          "skip_recipient": "Recipient email"
+        }
       }
     },
     "error": {
