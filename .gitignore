@@ -2,6 +2,7 @@
 __pycache__/
 .env*
 secrets.yaml
+backups/
 .camera_areas.json
 .cameras.json
 .camera_status.json

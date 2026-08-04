@@ -36,6 +36,7 @@
         "title": "Tuya Watering Settings",
         "menu_options": {
           "add_valve":          "Add a valve",
+          "edit_valve":         "Edit a valve",
           "remove_valve":       "Remove a valve",
           "edit_smtp":          "Edit SMTP settings",
           "edit_notifications": "Edit notification recipient"
@@ -56,6 +57,31 @@
           "dps_trigger":      "DPS code — start trigger",
           "dps_stop":         "DPS code — stop"
         }
+      },
+      "edit_valve": {
+        "title": "Edit Valve",
+        "data": { "valve_index": "Select valve to edit" }
+      },
+      "edit_valve_form": {
+        "title": "Edit Valve",
+        "description": "Current values are pre-filled below — change what's wrong and save.",
+        "data": {
+          "name":             "Valve name",
+          "device_id":        "Tuya Device ID",
+          "gateway_id":       "Gateway ID",
+          "gateway_ip":       "Gateway IP address",
+          "gateway_key":      "Gateway local key",
+          "sub_cid":          "Sub-device CID",
+          "default_duration": "Default duration (seconds)",
+          "dps_duration":     "DPS code — duration",
+          "dps_trigger":      "DPS code — start trigger",
+          "dps_stop":         "DPS code — stop"
+        }
+      },
+      "import_device": {
+        "title": "Import from Tuya",
+        "description": "Devices discovered from the linked Tuya hub — picking one pre-fills the Device ID and Sub-device CID on the next screen so you don't have to hunt for them manually.",
+        "data": { "device": "Device" }
       },
       "remove_valve": {
         "title": "Remove Valve",

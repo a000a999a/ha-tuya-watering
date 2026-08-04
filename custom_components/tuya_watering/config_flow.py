@@ -34,6 +34,9 @@ from .const import (
     DOMAIN,
     DOMAIN_CORE,
 )
+from .tuya_discovery import discover_valve_candidates
+
+_MANUAL_ENTRY = "__manual__"
 
 
 def _smtp_schema(defaults: dict | None = None) -> vol.Schema:
@@ -164,11 +167,16 @@ class TuyaWateringOptionsFlow(OptionsFlow):
         self._entry                 = config_entry
         self._valves: list[dict]    = list(config_entry.options.get(CONF_VALVES, []))
         self._remove_index: int | None = None
+        self._edit_index: int | None = None
+        self._import_offered: bool  = False
+        self._import_target: str    = ""
+        self._import_defaults: dict = {}
+        self._import_candidates: list[dict] = []
 
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_valve", "remove_valve", "edit_smtp", "edit_notifications"],
+            menu_options=["add_valve", "edit_valve", "remove_valve", "edit_smtp", "edit_notifications"],
         )
 
     async def async_step_edit_smtp(self, user_input: dict | None = None) -> ConfigFlowResult:
@@ -212,12 +220,97 @@ class TuyaWateringOptionsFlow(OptionsFlow):
             else:
                 self._valves.append(valve)
                 return self.async_create_entry(data={CONF_VALVES: self._valves})
+        elif not self._import_offered:
+            # First time entering this step this session — offer Tuya-discovered
+            # devices before falling back to a blank manual form. Runs once;
+            # `_import_offered` prevents re-triggering on a validation-error redisplay.
+            self._import_offered = True
+            self._import_target  = "add"
+            self._import_defaults = {}
+            candidates = discover_valve_candidates(self.hass, self._entry.data[CONF_CORE_ENTRY_ID])
+            if candidates:
+                self._import_candidates = candidates
+                return await self.async_step_import_device()
 
         return self.async_show_form(
             step_id="add_valve",
-            data_schema=_valve_schema(),
+            data_schema=_valve_schema(self._import_defaults),
             errors=errors,
         )
+
+    async def async_step_edit_valve(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Pick which existing valve to edit."""
+        if not self._valves:
+            return self.async_abort(reason="no_valves")
+
+        if user_input is not None:
+            self._edit_index = int(user_input["valve_index"])
+            self._import_defaults = dict(self._valves[self._edit_index])
+            self._import_target = "edit"
+            if not self._import_offered:
+                self._import_offered = True
+                candidates = discover_valve_candidates(self.hass, self._entry.data[CONF_CORE_ENTRY_ID])
+                if candidates:
+                    self._import_candidates = candidates
+                    return await self.async_step_import_device()
+            return await self.async_step_edit_valve_form()
+
+        options = [
+            selector.SelectOptionDict(value=str(i), label=v[CONF_VALVE_NAME])
+            for i, v in enumerate(self._valves)
+        ]
+        schema = vol.Schema({
+            vol.Required("valve_index"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            )
+        })
+        return self.async_show_form(step_id="edit_valve", data_schema=schema)
+
+    async def async_step_edit_valve_form(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Show the current (or just-imported) values for the chosen valve; save in place."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            valve = _clean_valve(user_input)
+            if not valve.get(CONF_VALVE_NAME) or not valve.get(CONF_DEVICE_ID):
+                errors["base"] = "valve_fields_required"
+            else:
+                self._valves[self._edit_index] = valve
+                return self.async_create_entry(data={CONF_VALVES: self._valves})
+
+        return self.async_show_form(
+            step_id="edit_valve_form",
+            data_schema=_valve_schema(self._import_defaults),
+            errors=errors,
+        )
+
+    async def async_step_import_device(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Optional detour offered from both Add and Edit: pick a Tuya-discovered
+        device to pre-fill device_id/sub_cid/name, or enter everything manually."""
+        if user_input is not None:
+            choice = user_input["device"]
+            if choice != _MANUAL_ENTRY:
+                picked = self._import_candidates[int(choice)]
+                self._import_defaults = {
+                    **self._import_defaults,
+                    CONF_DEVICE_ID:  picked["device_id"],
+                    CONF_SUB_CID:    picked["sub_cid"],
+                    CONF_VALVE_NAME: self._import_defaults.get(CONF_VALVE_NAME) or picked["name"],
+                }
+            if self._import_target == "edit":
+                return await self.async_step_edit_valve_form()
+            return await self.async_step_add_valve()
+
+        options = [
+            selector.SelectOptionDict(value=str(i), label=c["label"])
+            for i, c in enumerate(self._import_candidates)
+        ] + [selector.SelectOptionDict(value=_MANUAL_ENTRY, label="Enter manually")]
+        schema = vol.Schema({
+            vol.Required("device"): selector.SelectSelector(
+                selector.SelectSelectorConfig(options=options)
+            )
+        })
+        return self.async_show_form(step_id="import_device", data_schema=schema)
 
     async def async_step_remove_valve(self, user_input: dict | None = None) -> ConfigFlowResult:
         if not self._valves:
