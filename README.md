@@ -11,7 +11,10 @@ weather-based and manual watering.
 - **[Tuya Home Core](https://github.com/a000a999a/ha-tuya-home-core)** installed and configured
 - Tuya-compatible Zigbee water timer (default: GIEX GX-02BT)
 - For local control: gateway local IP, local key, gateway ID, sub-device CID
-  (use the [tinytuya wizard](https://github.com/jasonacox/tinytuya) to discover these)
+  (use the [tinytuya wizard](https://github.com/jasonacox/tinytuya) to discover these
+  — or, if your Tuya Developer Platform subscription has expired, the built-in
+  Import picker in this integration's Add/Edit Valve flow gets you device_id/sub_cid
+  without it; see [docs/device_discovery.md](docs/device_discovery.md))
 
 ## Installation via HACS
 
