@@ -10,11 +10,32 @@ weather-based and manual watering.
 
 - **[Tuya Home Core](https://github.com/a000a999a/ha-tuya-home-core)** installed and configured
 - Tuya-compatible Zigbee water timer (default: GIEX GX-02BT)
-- For local control: gateway local IP, local key, gateway ID, sub-device CID
-  (use the [tinytuya wizard](https://github.com/jasonacox/tinytuya) to discover these
-  — or, if your Tuya Developer Platform subscription has expired, the built-in
-  Import picker in this integration's Add/Edit Valve flow gets you device_id/sub_cid
-  without it; see [docs/device_discovery.md](docs/device_discovery.md))
+- Gateway local IP, local key, gateway ID, and each valve's device_id/sub_cid
+  — see **Finding these values** below
+- `tinytuya` — installed automatically by Home Assistant from this
+  integration's manifest (no manual `pip install`). Used only at runtime to
+  send local LAN commands to the valve; not involved in either discovery
+  method below.
+
+### Finding these values
+
+Two independent discovery methods for device_id/sub_cid — pick either one:
+
+1. **Recommended, no Tuya Developer Platform account needed:** this
+   integration's own Add/Edit Valve → Import picker, backed by the
+   `tuya_sharing` SDK (the same one the official Tuya integration uses). See
+   [docs/device_discovery.md](docs/device_discovery.md) for how it works and
+   why it doesn't need `tinytuya` or an IoT Core subscription.
+2. **Alternative:** the [tinytuya wizard](https://github.com/jasonacox/tinytuya)
+   — a separate CLI discovery tool from the `tinytuya` project. Requires its
+   own Tuya Developer Platform project (Access ID/Secret) and an active IoT
+   Core subscription; unrelated to the `tinytuya` Python package this
+   integration installs automatically for runtime control.
+
+Neither method discovers the **gateway's** IP/local key/ID — those aren't
+exposed by either the `tuya_sharing` SDK or the Cloud API for this device
+type, so enter them manually once (see docs/device_discovery.md for why this
+is fine in practice).
 
 ## Installation via HACS
 
