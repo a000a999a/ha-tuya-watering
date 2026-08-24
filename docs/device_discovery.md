@@ -48,6 +48,52 @@ own separate key, they're addressed *through* the gateway's shared key
 (`tinytuya.Device(cid=sub_cid, parent=gateway)`), so the gateway's fields only
 need entering once and rarely change.
 
+## Getting a gateway's local_key when you don't already have one
+
+Sometimes there's no way around needing a fresh gateway `local_key` — e.g. a
+gateway got re-paired/repurposed and its key rotated (this happens; local_key
+isn't permanent). Here's the workaround that got a real, working key **while
+an IoT Core trial-extension request was still showing "under review"** —
+i.e. this may not require waiting for full approval at all:
+
+1. In your Tuya Cloud Development project, go to **Cloud → API Explorer**
+2. Find **IoT Core → Device Management → "Query Device Details"** — the
+   **singular** one (`GET /v2.0/cloud/thing/{device_id}`), **not** "Query
+   Device Details in Bulk" (`GET /v2.0/cloud/thing/batch`). We tested both:
+   the bulk endpoint returned `Error 28841002` while the request was pending,
+   the singular one returned full device data including `local_key`.
+3. Use the page's built-in "Try it out" / "Debug" tool, enter the device's
+   `device_id` (the gateway's, not a sub-device's — this endpoint returns
+   `local_key` for gateway-class devices specifically), run it
+4. Read `local_key` straight from the JSON response
+
+**We don't have a confirmed explanation for the singular-vs-bulk difference**
+— it could be that these two specific endpoints are gated differently, or
+that the extension had already been silently approved server-side while the
+console UI still showed "under review." Don't assume either explanation;
+just try the singular endpoint yourself even if bulk (or the whole service)
+looks blocked — it cost nothing to check and it worked for us.
+
+If you don't have an IoT Core trial-extension request in flight yet, submit
+one first (Cloud → Service API tab → IoT Core → "Extend Trial Period") — the
+above worked *during* the review period, not proof it works with zero
+request submitted at all.
+
+Verify whatever key you get with a **read-only** local test before trusting
+it — do not call `.status()` on the gateway device directly (see the
+gw.status()/"device22" warning in the main project CLAUDE.md), call it on a
+known sub-device instead:
+
+```python
+import tinytuya
+gw = tinytuya.Device(gateway_id, gateway_ip, local_key, version=3.4)
+gw.set_socketTimeout(8)
+sub = tinytuya.Device(valve_device_id, cid=valve_sub_cid, local_key=local_key,
+                       version=3.4, parent=gw)
+sub.set_socketTimeout(8)
+print(sub.status())  # real DPS dict back = key confirmed correct
+```
+
 ## Using this to configure a different integration (e.g. LocalTuya)
 
 LocalTuya's own setup wizard has a Cloud API discovery step, but it's gated by
