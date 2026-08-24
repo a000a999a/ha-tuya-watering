@@ -69,3 +69,31 @@ Tuya hub (Settings → Devices & Services → Tuya Home Core → Configure → "
 Tuya hub") — the picker returns nothing if that link isn't set, and Home Core
 falls back to unscoped discovery instead. See `ha-tuya-home-core`'s README for
 the linking step.
+
+## Required Tuya Cloud project services
+
+Your Tuya Cloud Development project (the one whose Access ID/Secret goes into
+Tuya Home Core) needs these services **subscribed and active** for the
+`tuya_sharing` session to work at all — check under your project's
+**Cloud → Service API** tab:
+
+- **Authorization Token Management**
+- **Smart Home Basic Service**
+- **Data Dashboard Service**
+- **Smart Home Scene Linkage** (shown as "[Deprecate]" in the console but still
+  required — don't unsubscribe it)
+- **Device Status Notification**
+
+These five are what actually keep everything running day-to-day: device sync,
+MQTT motion events, the whole `tuya_sharing` session this project depends on.
+None of them are gated by the same expiry mechanism as IoT Core.
+
+**IoT Core is a separate, occasional-use service — not part of the steady-state
+baseline above.** It's only needed transiently, to fetch a *new* gateway's
+`local_key` when it isn't already known (see the main sections above for why
+sub_cid discovery never needs it, and why gateway local_key is the one thing
+that does). Once a gateway's key is recorded, nothing in ongoing operation —
+not this integration, not LocalTuya in manual/no-cloud mode, not `tuya_cameras`
+— calls IoT Core again. If IoT Core's Trial Edition has expired, everything
+above keeps working; you'll only hit `Error 28841002` if you try to onboard a
+gateway whose key you don't already have.
