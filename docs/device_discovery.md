@@ -52,32 +52,36 @@ need entering once and rarely change.
 
 Sometimes there's no way around needing a fresh gateway `local_key` — e.g. a
 gateway got re-paired/repurposed and its key rotated (this happens; local_key
-isn't permanent). Here's the workaround that got a real, working key **while
-an IoT Core trial-extension request was still showing "under review"** —
-i.e. this may not require waiting for full approval at all:
+isn't permanent). This needs IoT Core, but the trial-extension request is
+worth doing since it's free and (in our case) got approved:
 
-1. In your Tuya Cloud Development project, go to **Cloud → API Explorer**
-2. Find **IoT Core → Device Management → "Query Device Details"** — the
-   **singular** one (`GET /v2.0/cloud/thing/{device_id}`), **not** "Query
-   Device Details in Bulk" (`GET /v2.0/cloud/thing/batch`). We tested both:
-   the bulk endpoint returned `Error 28841002` while the request was pending,
-   the singular one returned full device data including `local_key`.
-3. Use the page's built-in "Try it out" / "Debug" tool, enter the device's
-   `device_id` (the gateway's, not a sub-device's — this endpoint returns
-   `local_key` for gateway-class devices specifically), run it
+1. Submit a trial extension: **Cloud → Service API tab → IoT Core → "Extend
+   Trial Period."** We wrote an honest, minimal project description (personal
+   home automation, non-commercial, single household, small device count) —
+   see the note below on that. Approval isn't instant but can land faster
+   than the console's own "under review" status suggests — ours showed
+   "under review" right up until it was actually approved (6-month grant),
+   so don't assume it's still pending just because the UI hasn't updated.
+2. Once approved, go to **Cloud → API Explorer → IoT Core → Device
+   Management → "Query Device Details"** (`GET /v2.0/cloud/thing/{device_id}`)
+3. Use the page's built-in "Try it out" / "Debug" tool, enter the gateway's
+   `device_id`, run it
 4. Read `local_key` straight from the JSON response
 
-**We don't have a confirmed explanation for the singular-vs-bulk difference**
-— it could be that these two specific endpoints are gated differently, or
-that the extension had already been silently approved server-side while the
-console UI still showed "under review." Don't assume either explanation;
-just try the singular endpoint yourself even if bulk (or the whole service)
-looks blocked — it cost nothing to check and it worked for us.
+(We initially saw the *bulk* variant of this call — `GET
+/v2.0/cloud/thing/batch` — fail with `Error 28841002` and assumed the
+singular endpoint was somehow gated differently and still working while
+"under review." In hindsight the more likely explanation is simpler: the
+approval had already landed between those two tests, before the console UI
+caught up. Not a confirmed endpoint-specific quirk — just approval-timing.)
 
-If you don't have an IoT Core trial-extension request in flight yet, submit
-one first (Cloud → Service API tab → IoT Core → "Extend Trial Period") — the
-above worked *during* the review period, not proof it works with zero
-request submitted at all.
+**On the project description:** we wrote something like *"Personal home
+automation project. Using Home Assistant to locally control a small number
+of Tuya Zigbee irrigation valves and gateways in my own home. Cloud API is
+used for initial device setup; non-commercial, single household, testing
+with [N] devices."* — plain, honest, and scoped to what it actually is.
+Nothing to embellish here; this is exactly the light-touch personal use case
+Tuya's trial tier is meant for.
 
 Verify whatever key you get with a **read-only** local test before trusting
 it — do not call `.status()` on the gateway device directly (see the
