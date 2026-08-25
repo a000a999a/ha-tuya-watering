@@ -44,7 +44,7 @@ variables:
   duration_minutes: !input duration_minutes
 
 action:
-  - action: switch.turn_on
+  - action: tuya_watering.open_valve
     data:
       duration: "{{ (duration_minutes | float * 60) | int }}"
     target:
@@ -53,6 +53,6 @@ action:
   - delay:
       minutes: !input duration_minutes
 
-  - action: switch.turn_off
+  - action: tuya_watering.close_valve
     target:
       entity_id: !input valve_entities
