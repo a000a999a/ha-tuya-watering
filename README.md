@@ -90,6 +90,32 @@ Import from **Settings → Automations → Blueprints → Import Blueprint**.
 | Rain threshold | 40% | Skip if rain probability ≥ this |
 | Storm conditions | rainy, pouring, hail… | Skip if today's condition matches |
 
+## Dashboard
+
+No manual dashboard setup needed — the integration creates and keeps two
+cards on your Overview dashboard's Home view in sync automatically:
+
+- **Tuya Watering** — a toggle for every configured valve
+- **Tuya Watering Schedule** — any automation, duration, or start-time helper
+  entity it can find that belongs to one of your valves (see naming below).
+  Only appears once at least one valve has something to show.
+
+This runs automatically whenever a valve is added, edited, or removed — and
+on every Home Assistant restart. It's purely additive: it only ever touches
+these two cards by title, never anything else you've added to that view. You
+can also trigger it manually with the `tuya_watering.refresh_dashboard`
+service (e.g. right after importing a blueprint automation, instead of
+waiting for the next reload).
+
+**For the Schedule card to find your automations/helpers:** name them so the
+entity_id contains your valve's name as a whole word — e.g. a valve named
+"Terrasse" (`switch.terrasse`) is matched by `automation.watering_terrasse_run_1`,
+`input_number.watering_terrasse_run1_duration`, `input_datetime.watering_terrasse_run1_time`,
+etc. (HA derives the entity_id from whatever name you give the automation/helper,
+so just make sure the valve's name appears in it.) This is exactly what you get by
+naming things consistently when importing the blueprints above or defining
+helpers by hand — no special setup required beyond that.
+
 ## DPS codes for common valves
 
 | Device | Duration DPS | Trigger DPS | Stop DPS |
@@ -111,3 +137,4 @@ Each configured valve creates:
 |---|---|
 | `tuya_watering.open_valve` | Open valve, optional `duration` (seconds) |
 | `tuya_watering.close_valve` | Close valve immediately |
+| `tuya_watering.refresh_dashboard` | Force an immediate dashboard card refresh (see [Dashboard](#dashboard)) |

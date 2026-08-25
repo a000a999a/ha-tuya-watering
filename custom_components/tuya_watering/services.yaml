@@ -1,3 +1,12 @@
+refresh_dashboard:
+  name: Refresh Dashboard
+  description: >
+    Re-scans all valves and any matching schedule automations/helpers, then
+    creates or updates the "Tuya Watering" and "Tuya Watering Schedule" cards
+    on the Overview dashboard. Runs automatically on setup/reload — this is
+    for forcing an immediate refresh (e.g. right after importing a blueprint
+    automation) without waiting for the next reload.
+
 open_valve:
   name: Open Valve
   description: Open a watering valve for a specified duration. Uses the valve's configured default duration if not specified.

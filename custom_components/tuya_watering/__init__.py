@@ -22,6 +22,7 @@ from .const import (
     DOMAIN_CORE,
 )
 from .coordinator import WateringCoordinator
+from .lovelace import update_watering_view
 from .notify import Notifier
 
 _LOGGER = logging.getLogger(__name__)
@@ -97,6 +98,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DOMAIN, "notify_skip", _handle_notify_skip, schema=_NOTIFY_SKIP_SCHEMA
         )
 
+    if not hass.services.has_service(DOMAIN, "refresh_dashboard"):
+        async def _handle_refresh_dashboard(call: ServiceCall) -> None:
+            await update_watering_view(hass)
+
+        hass.services.async_register(DOMAIN, "refresh_dashboard", _handle_refresh_dashboard)
+
+    # Best-effort — never blocks setup, never raises (see lovelace.py). Runs
+    # on every entry setup/reload, so adding/editing/removing a valve keeps
+    # the dashboard in sync with zero manual steps.
+    hass.async_create_task(update_watering_view(hass))
+
     _LOGGER.info(
         "Tuya Watering loaded: %d valve(s)%s",
         len(entry.options.get(CONF_VALVES, [])),
@@ -111,6 +123,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id, None)
         if not hass.data.get(DOMAIN):
             hass.services.async_remove(DOMAIN, "notify_skip")
+            hass.services.async_remove(DOMAIN, "refresh_dashboard")
     return unloaded
 
 
