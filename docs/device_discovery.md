@@ -98,19 +98,30 @@ sub.set_socketTimeout(8)
 print(sub.status())  # real DPS dict back = key confirmed correct
 ```
 
-## Using this to configure a different integration (e.g. LocalTuya)
+## Why this integration exists instead of LocalTuya
 
-LocalTuya's own setup wizard has a Cloud API discovery step, but it's gated by
-the same expired-subscription problem, and it has no `tuya_sharing` fallback
-built in. If you're setting up LocalTuya (or anything else that wants a raw
-`device_id`/`sub_cid` pair) instead of this integration:
+We evaluated switching to [LocalTuya](https://github.com/rospogrigio/localtuya)
+(the popular HACS alternative) to retire this custom code. It didn't work out:
+the mainline version has **no support for Zigbee sub-devices behind a
+gateway at all** — grepped its entire source for `zigbee`/`gateway`/`node_id`/
+`cid`, zero matches. It only connects to standalone WiFi devices with their
+own IP and local_key. Adding a valve saved successfully but the entity stayed
+permanently "unavailable" — there's simply no field anywhere to tell it which
+gateway/cid to route through. (A few forks reportedly add this —
+[`xZetsubou/hass-localtuya`](https://github.com/xZetsubou/hass-localtuya) has
+docs for it specifically — untried here, but worth knowing about if you'd
+rather go that route than run custom code.)
 
-1. Add the device as a **Tuya Watering** valve entry purely to trigger the
-   Import picker described above
-2. Note the `device_id` and `sub_cid` it shows you
-3. Delete that entry (or leave it — it's harmless either way)
-4. Paste the same two values into the other integration's manual/local entry
-   form, along with the gateway's IP/local key/ID (entered once, unchanged)
+Separately: this integration's built-in email notifications for skipped/failed
+runs (`notify.py`) have no LocalTuya equivalent either — you'd be rebuilding
+that as HA automations from scratch. Between the two, we kept the custom
+integration.
+
+If you still want just a raw `device_id`/`sub_cid` pair for something else
+(LocalTuya's Zigbee-capable forks, a different tool entirely), the discovery
+mechanism above works for that too — add the device as a valve entry purely
+to trigger the Import picker, note the values it shows you, then delete the
+entry if you don't want to keep it (harmless either way).
 
 ## Prerequisite
 
@@ -143,7 +154,7 @@ baseline above.** It's only needed transiently, to fetch a *new* gateway's
 `local_key` when it isn't already known (see the main sections above for why
 sub_cid discovery never needs it, and why gateway local_key is the one thing
 that does). Once a gateway's key is recorded, nothing in ongoing operation —
-not this integration, not LocalTuya in manual/no-cloud mode, not `tuya_cameras`
-— calls IoT Core again. If IoT Core's Trial Edition has expired, everything
-above keeps working; you'll only hit `Error 28841002` if you try to onboard a
-gateway whose key you don't already have.
+not this integration, not `tuya_cameras` — calls IoT Core again. If IoT Core's
+Trial Edition has expired, everything above keeps working; you'll only hit
+`Error 28841002` if you try to onboard a gateway whose key you don't already
+have.
