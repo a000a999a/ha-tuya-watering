@@ -1,7 +1,7 @@
 {
   "domain": "tuya_watering",
   "name": "Tuya Watering",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "documentation": "https://github.com/a000a999a/ha-tuya-watering",
   "issue_tracker": "https://github.com/a000a999a/ha-tuya-watering/issues",
   "requirements": ["tinytuya>=1.15.0"],

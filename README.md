@@ -92,20 +92,25 @@ Import from **Settings → Automations → Blueprints → Import Blueprint**.
 
 ## Dashboard
 
-No manual dashboard setup needed — the integration creates and keeps two
-cards on your Overview dashboard's Home view in sync automatically:
+No manual dashboard setup needed — the integration creates its own
+**"Tuya Watering"** entry in the sidebar (same as Map or Energy) with two
+cards, kept in sync automatically:
 
 - **Tuya Watering** — a toggle for every configured valve
 - **Tuya Watering Schedule** — any automation, duration, or start-time helper
   entity it can find that belongs to one of your valves (see naming below).
   Only appears once at least one valve has something to show.
 
-This runs automatically whenever a valve is added, edited, or removed — and
-on every Home Assistant restart. It's purely additive: it only ever touches
-these two cards by title, never anything else you've added to that view. You
-can also trigger it manually with the `tuya_watering.refresh_dashboard`
-service (e.g. right after importing a blueprint automation, instead of
-waiting for the next reload).
+This is a dedicated dashboard, not cards injected into your Overview — it
+never touches anything else in your Home Assistant setup, regardless of
+what your own dashboards already look like. Registering a brand-new
+dashboard needs one Home Assistant restart before it shows up in the
+sidebar (dashboards are only read from the registry at startup) — this only
+applies the very first time; after that, card content updates apply live on
+every valve add/edit/remove and every restart. You can also trigger a
+refresh manually with the `tuya_watering.refresh_dashboard` service (e.g.
+right after importing a blueprint automation, instead of waiting for the
+next reload).
 
 **For the Schedule card to find your automations/helpers:** name them so the
 entity_id contains your valve's name as a whole word — e.g. a valve named
