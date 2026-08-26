@@ -60,14 +60,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             tmrw_pct  = call.data.get("tomorrow_rain_pct", 0)
 
             subject = f"[Watering] {valve} {run} skipped – rain forecast"
-            body = (
-                f"<p><strong>{valve} {run}</strong> was skipped"
-                + (f" at {time_str}" if time_str else "")
-                + ".</p>"
+            when_suffix = f" at {time_str}" if time_str else ""
+            html_body = (
+                f"<p><strong>{valve} {run}</strong> was skipped{when_suffix}.</p>"
                 f"<p>Next 6h: {condition}, rain up to {today_pct}%</p>"
                 f"<p>Trigger manually if needed: call "
                 f"<code>tuya_watering.open_valve</code> on "
                 f"<code>switch.{valve.lower()}</code>.</p>"
+            )
+            plain_body = (
+                f"{valve} {run} was skipped{when_suffix}.\n"
+                f"Next 6h: {condition}, rain up to {today_pct}%\n"
+                f"Trigger manually if needed: call tuya_watering.open_valve "
+                f"on switch.{valve.lower()}."
             )
 
             for entry_data in hass.data.get(DOMAIN, {}).values():
@@ -78,9 +83,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 if not notify_entity:
                     continue
                 try:
+                    # smtp.send_message (not the generic notify.send_message) —
+                    # only this one has a separate `html` field. The generic
+                    # action only has plain-text `message`, so HTML tags would
+                    # render literally instead of being formatted.
                     await hass.services.async_call(
-                        "notify", "send_message",
-                        {"message": body, "title": subject},
+                        "smtp", "send_message",
+                        {"title": subject, "message": plain_body, "html": html_body},
                         target={"entity_id": notify_entity},
                         blocking=True,
                     )

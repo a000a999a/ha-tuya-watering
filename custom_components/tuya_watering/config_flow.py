@@ -36,8 +36,11 @@ _MANUAL_ENTRY = "__manual__"
 def _notifications_schema(defaults: dict | None = None) -> vol.Schema:
     d = defaults or {}
     return vol.Schema({
+        # Scoped to the SMTP integration specifically — notify_skip calls
+        # smtp.send_message (for HTML body support), which only accepts
+        # SMTP-backed notify entities as its target.
         vol.Optional(CONF_NOTIFY_ENTITY, default=d.get(CONF_NOTIFY_ENTITY, "")):
-            selector.EntitySelector(selector.EntitySelectorConfig(domain="notify")),
+            selector.EntitySelector(selector.EntitySelectorConfig(domain="notify", integration="smtp")),
     })
 
 
