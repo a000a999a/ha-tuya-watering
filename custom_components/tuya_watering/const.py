@@ -7,17 +7,10 @@ DOMAIN_CORE = "tuya_home_core"
 CONF_CORE_ENTRY_ID    = "core_entry_id"
 CONF_VALVES           = "valves"
 
-# SMTP (stored in entry.data)
-CONF_SMTP_HOST        = "smtp_host"
-CONF_SMTP_PORT        = "smtp_port"
-CONF_SMTP_SENDER      = "smtp_sender"
-CONF_SMTP_PASSWORD    = "smtp_password"
-
-# Notification recipient (stored in entry.options)
-CONF_SKIP_RECIPIENT   = "skip_recipient"
-
-DEFAULT_SMTP_HOST     = "smtp.gmail.com"
-DEFAULT_SMTP_PORT     = 587
+# Skip-alert notification target (stored in entry.options) — entity_id of any
+# HA `notify` domain entity (e.g. from the built-in SMTP integration). Blank/
+# unset means no notification for this valve's skipped runs.
+CONF_NOTIFY_ENTITY    = "notify_entity"
 
 # Per-valve keys
 CONF_VALVE_NAME       = "name"

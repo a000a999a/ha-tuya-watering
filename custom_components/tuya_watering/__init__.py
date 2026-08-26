@@ -12,24 +12,17 @@ from homeassistant.helpers import config_validation as cv
 
 from .const import (
     CONF_CORE_ENTRY_ID,
-    CONF_SKIP_RECIPIENT,
-    CONF_SMTP_HOST,
-    CONF_SMTP_PASSWORD,
-    CONF_SMTP_PORT,
-    CONF_SMTP_SENDER,
+    CONF_NOTIFY_ENTITY,
     CONF_VALVES,
     DOMAIN,
     DOMAIN_CORE,
 )
 from .coordinator import WateringCoordinator
 from .lovelace import update_watering_view
-from .notify import Notifier
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = ["switch"]
-
-_SMTP_KEYS = (CONF_SMTP_HOST, CONF_SMTP_PORT, CONF_SMTP_SENDER, CONF_SMTP_PASSWORD)
 
 _NOTIFY_SKIP_SCHEMA = vol.Schema({
     vol.Required("valve"):              cv.string,
@@ -49,13 +42,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = WateringCoordinator(hass)
 
-    notifier: Notifier | None = None
-    if all(entry.data.get(k) for k in _SMTP_KEYS):
-        notifier = Notifier(entry.data)
-
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = {
         "coordinator": coordinator,
-        "notifier":    notifier,
         "entry":       entry,
     }
 
@@ -83,16 +71,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             )
 
             for entry_data in hass.data.get(DOMAIN, {}).values():
-                notifier = entry_data.get("notifier")
                 cfg_entry = entry_data.get("entry")
-                if not notifier or not cfg_entry:
+                if not cfg_entry:
                     continue
-                recipient = cfg_entry.options.get(CONF_SKIP_RECIPIENT, "").strip()
-                if not recipient:
+                notify_entity = cfg_entry.options.get(CONF_NOTIFY_ENTITY, "").strip()
+                if not notify_entity:
                     continue
-                await hass.async_add_executor_job(
-                    notifier.send, subject, body, [recipient]
-                )
+                try:
+                    await hass.services.async_call(
+                        "notify", "send_message",
+                        {"message": body, "title": subject},
+                        target={"entity_id": notify_entity},
+                        blocking=True,
+                    )
+                except Exception as err:  # noqa: BLE001 — never let a bad target break skip-handling
+                    _LOGGER.error("notify_skip: failed to send via %s: %s", notify_entity, err)
 
         hass.services.async_register(
             DOMAIN, "notify_skip", _handle_notify_skip, schema=_NOTIFY_SKIP_SCHEMA
@@ -112,7 +105,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.info(
         "Tuya Watering loaded: %d valve(s)%s",
         len(entry.options.get(CONF_VALVES, [])),
-        ", notifier active" if notifier else "",
+        ", skip-notify configured" if entry.options.get(CONF_NOTIFY_ENTITY) else "",
     )
     return True
 

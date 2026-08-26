@@ -17,11 +17,7 @@ from .const import (
     CONF_GATEWAY_ID,
     CONF_GATEWAY_IP,
     CONF_GATEWAY_KEY,
-    CONF_SKIP_RECIPIENT,
-    CONF_SMTP_HOST,
-    CONF_SMTP_PASSWORD,
-    CONF_SMTP_PORT,
-    CONF_SMTP_SENDER,
+    CONF_NOTIFY_ENTITY,
     CONF_SUB_CID,
     CONF_VALVE_NAME,
     CONF_VALVES,
@@ -29,8 +25,6 @@ from .const import (
     DEFAULT_DPS_DURATION,
     DEFAULT_DPS_STOP,
     DEFAULT_DPS_TRIGGER,
-    DEFAULT_SMTP_HOST,
-    DEFAULT_SMTP_PORT,
     DOMAIN,
     DOMAIN_CORE,
 )
@@ -39,27 +33,11 @@ from .tuya_discovery import discover_valve_candidates
 _MANUAL_ENTRY = "__manual__"
 
 
-def _smtp_schema(defaults: dict | None = None) -> vol.Schema:
-    d = defaults or {}
-    return vol.Schema({
-        vol.Required(CONF_SMTP_HOST,     default=d.get(CONF_SMTP_HOST, DEFAULT_SMTP_HOST)): str,
-        vol.Required(CONF_SMTP_PORT,     default=d.get(CONF_SMTP_PORT, DEFAULT_SMTP_PORT)):
-            selector.NumberSelector(selector.NumberSelectorConfig(
-                min=1, max=65535, mode=selector.NumberSelectorMode.BOX
-            )),
-        vol.Required(CONF_SMTP_SENDER,   default=d.get(CONF_SMTP_SENDER, "")): str,
-        vol.Required(CONF_SMTP_PASSWORD, default=d.get(CONF_SMTP_PASSWORD, "")):
-            selector.TextSelector(selector.TextSelectorConfig(type=selector.TextSelectorType.PASSWORD)),
-    })
-
-
 def _notifications_schema(defaults: dict | None = None) -> vol.Schema:
     d = defaults or {}
     return vol.Schema({
-        vol.Optional(CONF_SKIP_RECIPIENT, default=d.get(CONF_SKIP_RECIPIENT, "")):
-            selector.TextSelector(selector.TextSelectorConfig(
-                type=selector.TextSelectorType.EMAIL,
-            )),
+        vol.Optional(CONF_NOTIFY_ENTITY, default=d.get(CONF_NOTIFY_ENTITY, "")):
+            selector.EntitySelector(selector.EntitySelectorConfig(domain="notify")),
     })
 
 
@@ -161,7 +139,7 @@ class TuyaWateringConfigFlow(ConfigFlow, domain=DOMAIN):
 
 
 class TuyaWateringOptionsFlow(OptionsFlow):
-    """Options flow: add/remove valves, configure SMTP and notification recipient."""
+    """Options flow: add/remove valves, configure skip-notification target."""
 
     def __init__(self, config_entry: ConfigEntry) -> None:
         self._entry                 = config_entry
@@ -176,35 +154,18 @@ class TuyaWateringOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_valve", "edit_valve", "remove_valve", "edit_smtp", "edit_notifications"],
+            menu_options=["add_valve", "edit_valve", "remove_valve", "edit_notifications"],
         )
-
-    async def async_step_edit_smtp(self, user_input: dict | None = None) -> ConfigFlowResult:
-        if user_input is not None:
-            new_data = {
-                **self._entry.data,
-                CONF_SMTP_HOST:     user_input[CONF_SMTP_HOST],
-                CONF_SMTP_PORT:     int(user_input[CONF_SMTP_PORT]),
-                CONF_SMTP_SENDER:   user_input[CONF_SMTP_SENDER],
-                CONF_SMTP_PASSWORD: user_input[CONF_SMTP_PASSWORD],
-            }
-            self.hass.config_entries.async_update_entry(self._entry, data=new_data)
-            return self.async_create_entry(data={**self._entry.options, CONF_VALVES: self._valves})
-
-        defaults = {k: self._entry.data.get(k) for k in (
-            CONF_SMTP_HOST, CONF_SMTP_PORT, CONF_SMTP_SENDER, CONF_SMTP_PASSWORD
-        )}
-        return self.async_show_form(step_id="edit_smtp", data_schema=_smtp_schema(defaults))
 
     async def async_step_edit_notifications(self, user_input: dict | None = None) -> ConfigFlowResult:
         if user_input is not None:
             return self.async_create_entry(data={
                 **self._entry.options,
-                CONF_VALVES:          self._valves,
-                CONF_SKIP_RECIPIENT:  user_input.get(CONF_SKIP_RECIPIENT, "").strip(),
+                CONF_VALVES:        self._valves,
+                CONF_NOTIFY_ENTITY: user_input.get(CONF_NOTIFY_ENTITY, ""),
             })
 
-        defaults = {CONF_SKIP_RECIPIENT: self._entry.options.get(CONF_SKIP_RECIPIENT, "")}
+        defaults = {CONF_NOTIFY_ENTITY: self._entry.options.get(CONF_NOTIFY_ENTITY, "")}
         return self.async_show_form(
             step_id="edit_notifications",
             data_schema=_notifications_schema(defaults),
