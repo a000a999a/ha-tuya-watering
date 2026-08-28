@@ -37,6 +37,15 @@ exposed by either the `tuya_sharing` SDK or the Cloud API for this device
 type, so enter them manually once (see docs/device_discovery.md for why this
 is fine in practice).
 
+## Tested hardware
+
+| Component | Tested device | Notes |
+|---|---|---|
+| Zigbee gateway | Tuya-compatible WiFi↔Zigbee 3.0 gateway (generic OEM) | Local LAN protocol v3.4 via [tinytuya](https://github.com/jasonacox/tinytuya). One gateway hosts multiple valve sub-devices. |
+| Water valve | **GIEX GX-02BT** (default DPS profile) | Battery Zigbee 3.0 sub-device. Local mode isn't just faster here — the cloud API returns error 2008 on the trigger DPS, so local control is required. |
+
+> Any Tuya Zigbee timer valve should work if you know its DPS codes — see [DPS codes for common valves](#dps-codes-for-common-valves) below to configure a different model.
+
 ## Installation via HACS
 
 1. Install **Tuya Home Core** first
