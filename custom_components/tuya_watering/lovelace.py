@@ -13,13 +13,18 @@ like in production:
 - "Tuya Watering": one switch per valve. Fully known to this integration —
   every valve it manages has a `switch.<slug>` entity.
 - "Tuya Watering Schedule": any automation / input_number / input_datetime
-  entity whose object_id contains a valve's slug as a whole underscore-
-  delimited word. This integration does NOT create those entities itself
-  (they come from hand-written automations, or from importing the repo's
-  blueprints) — this is a best-effort discovery pass over whatever already
-  exists, per valve. A valve with none yet (e.g. freshly added, no schedule
-  configured) simply doesn't contribute rows; the whole card is omitted if
-  no valve has anything to show yet.
+  entity whose object_id contains a valve's slug AND the word "watering"
+  as whole underscore-delimited words. This integration does NOT create
+  those entities itself (they come from hand-written automations, or from
+  importing the repo's blueprints) — this is a best-effort discovery pass
+  over whatever already exists, per valve, matched by this repo's naming
+  convention (e.g. watering_terrasse_run1). The "watering" requirement
+  exists because a valve's slug alone is not unique enough — an unrelated
+  automation for the same physical area (e.g. a camera motion alert named
+  "Winti Terrasse - ...") can share the valve's name as a word without
+  being a watering schedule entity at all. A valve with none yet (e.g.
+  freshly added, no schedule configured) simply doesn't contribute rows;
+  the whole card is omitted if no valve has anything to show yet.
 
 Registering a brand-new dashboard (as opposed to patching an already-loaded
 one) needs a Home Assistant restart before it appears in the sidebar — the
@@ -66,6 +71,7 @@ def _valve_slugs(hass: HomeAssistant) -> list[str]:
 
 _RUN_NUMBER_RE = re.compile(r"run_?0*(\d+)")
 _DOMAIN_ORDER = {"automation": 0, "input_number": 1, "input_datetime": 2}
+_WATERING_WORD_RE = re.compile(r"(^|_)watering(_|$)")
 
 
 def _schedule_sort_key(entity_id: str) -> tuple[int, int]:
@@ -81,15 +87,21 @@ def _schedule_sort_key(entity_id: str) -> tuple[int, int]:
 
 def _schedule_entities_for_slug(hass: HomeAssistant, slug: str) -> list[str]:
     """Best-effort: any automation/input_number/input_datetime entity that
-    mentions this valve's slug as a whole word. Sorted so each run's
-    automation/duration/time land together, in run order.
+    mentions this valve's slug AND "watering" as whole words. The slug alone
+    isn't unique enough — an unrelated automation for the same physical area
+    (e.g. a camera motion alert also named after the valve's location) can
+    contain the valve's name without being a watering schedule entity; the
+    "watering" requirement matches this repo's actual naming convention and
+    excludes those false positives. Sorted so each run's automation/duration/
+    time land together, in run order.
     """
-    pattern = re.compile(rf"(^|_){re.escape(slug)}(_|$)")
+    slug_pattern = re.compile(rf"(^|_){re.escape(slug)}(_|$)")
     matches = [
         state.entity_id
         for state in hass.states.async_all()
         if state.entity_id.split(".", 1)[0] in _SCHEDULE_DOMAINS
-        and pattern.search(state.entity_id.split(".", 1)[1])
+        and slug_pattern.search(state.entity_id.split(".", 1)[1])
+        and _WATERING_WORD_RE.search(state.entity_id.split(".", 1)[1])
     ]
     return sorted(matches, key=_schedule_sort_key)
 
