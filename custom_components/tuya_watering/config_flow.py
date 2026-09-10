@@ -18,16 +18,23 @@ from .const import (
     CONF_GATEWAY_IP,
     CONF_GATEWAY_KEY,
     CONF_NOTIFY_ENTITY,
+    CONF_RAIN_THRESHOLD,
+    CONF_STORM_CONDITIONS,
     CONF_SUB_CID,
     CONF_VALVE_NAME,
     CONF_VALVES,
+    CONF_WEATHER_ENTITY,
     DEFAULT_DURATION,
     DEFAULT_DPS_DURATION,
     DEFAULT_DPS_STOP,
     DEFAULT_DPS_TRIGGER,
+    DEFAULT_RAIN_THRESHOLD,
+    DEFAULT_STORM_CONDITIONS,
     DOMAIN,
     DOMAIN_CORE,
+    STORM_CONDITION_OPTIONS,
 )
+from .schedule_generator import async_remove_valve_schedule
 from .tuya_discovery import discover_valve_candidates
 
 _MANUAL_ENTRY = "__manual__"
@@ -41,6 +48,20 @@ def _notifications_schema(defaults: dict | None = None) -> vol.Schema:
         # SMTP-backed notify entities as its target.
         vol.Optional(CONF_NOTIFY_ENTITY, default=d.get(CONF_NOTIFY_ENTITY, "")):
             selector.EntitySelector(selector.EntitySelectorConfig(domain="notify", integration="smtp")),
+    })
+
+
+def _schedule_defaults_schema(defaults: dict | None = None) -> vol.Schema:
+    d = defaults or {}
+    return vol.Schema({
+        vol.Required(CONF_WEATHER_ENTITY, default=d.get(CONF_WEATHER_ENTITY, "")):
+            selector.EntitySelector(selector.EntitySelectorConfig(domain="weather")),
+        vol.Optional(CONF_RAIN_THRESHOLD, default=d.get(CONF_RAIN_THRESHOLD, DEFAULT_RAIN_THRESHOLD)):
+            selector.NumberSelector(selector.NumberSelectorConfig(min=0, max=100, unit_of_measurement="%")),
+        vol.Optional(CONF_STORM_CONDITIONS, default=d.get(CONF_STORM_CONDITIONS, DEFAULT_STORM_CONDITIONS)):
+            selector.SelectSelector(selector.SelectSelectorConfig(
+                options=STORM_CONDITION_OPTIONS, multiple=True,
+            )),
     })
 
 
@@ -157,7 +178,34 @@ class TuyaWateringOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict | None = None) -> ConfigFlowResult:
         return self.async_show_menu(
             step_id="init",
-            menu_options=["add_valve", "edit_valve", "remove_valve", "edit_notifications"],
+            menu_options=[
+                "add_valve", "edit_valve", "remove_valve",
+                "edit_notifications", "edit_schedule_defaults",
+            ],
+        )
+
+    async def async_step_edit_schedule_defaults(self, user_input: dict | None = None) -> ConfigFlowResult:
+        """Weather entity / rain threshold / storm conditions used by
+        schedule_generator.py to auto-write this entry's valve schedules.
+        Saving here reloads the entry, which re-runs schedule generation for
+        any valve still missing one (see async_setup_entry)."""
+        if user_input is not None:
+            return self.async_create_entry(data={
+                **self._entry.options,
+                CONF_VALVES:           self._valves,
+                CONF_WEATHER_ENTITY:   user_input[CONF_WEATHER_ENTITY],
+                CONF_RAIN_THRESHOLD:   user_input.get(CONF_RAIN_THRESHOLD, DEFAULT_RAIN_THRESHOLD),
+                CONF_STORM_CONDITIONS: user_input.get(CONF_STORM_CONDITIONS, DEFAULT_STORM_CONDITIONS),
+            })
+
+        defaults = {
+            CONF_WEATHER_ENTITY:   self._entry.options.get(CONF_WEATHER_ENTITY, ""),
+            CONF_RAIN_THRESHOLD:   self._entry.options.get(CONF_RAIN_THRESHOLD, DEFAULT_RAIN_THRESHOLD),
+            CONF_STORM_CONDITIONS: self._entry.options.get(CONF_STORM_CONDITIONS, DEFAULT_STORM_CONDITIONS),
+        }
+        return self.async_show_form(
+            step_id="edit_schedule_defaults",
+            data_schema=_schedule_defaults_schema(defaults),
         )
 
     async def async_step_edit_notifications(self, user_input: dict | None = None) -> ConfigFlowResult:
@@ -183,7 +231,7 @@ class TuyaWateringOptionsFlow(OptionsFlow):
                 errors["base"] = "valve_fields_required"
             else:
                 self._valves.append(valve)
-                return self.async_create_entry(data={CONF_VALVES: self._valves})
+                return self.async_create_entry(data={**self._entry.options, CONF_VALVES: self._valves})
         elif not self._import_offered:
             # First time entering this step this session — offer Tuya-discovered
             # devices before falling back to a blank manual form. Runs once;
@@ -240,7 +288,7 @@ class TuyaWateringOptionsFlow(OptionsFlow):
                 errors["base"] = "valve_fields_required"
             else:
                 self._valves[self._edit_index] = valve
-                return self.async_create_entry(data={CONF_VALVES: self._valves})
+                return self.async_create_entry(data={**self._entry.options, CONF_VALVES: self._valves})
 
         return self.async_show_form(
             step_id="edit_valve_form",
@@ -284,8 +332,12 @@ class TuyaWateringOptionsFlow(OptionsFlow):
 
         if user_input is not None:
             idx = int(user_input["valve_index"])
-            self._valves.pop(idx)
-            return self.async_create_entry(data={CONF_VALVES: self._valves})
+            removed = self._valves.pop(idx)
+            # Symmetric with async_ensure_valve_schedule — a switch that no
+            # longer exists shouldn't leave a scheduled automation pointing
+            # at a dead entity_id.
+            await async_remove_valve_schedule(self.hass, removed[CONF_VALVE_NAME])
+            return self.async_create_entry(data={**self._entry.options, CONF_VALVES: self._valves})
 
         options = [
             selector.SelectOptionDict(value=str(i), label=v[CONF_VALVE_NAME])

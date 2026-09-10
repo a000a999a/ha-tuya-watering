@@ -12,6 +12,19 @@ CONF_VALVES           = "valves"
 # unset means no notification for this valve's skipped runs.
 CONF_NOTIFY_ENTITY    = "notify_entity"
 
+# Schedule defaults (stored in entry.options) — used by schedule_generator.py
+# to auto-write each valve's Run 1/Run 2 automations. Unset CONF_WEATHER_ENTITY
+# means schedule generation is skipped entirely for this entry's valves.
+CONF_WEATHER_ENTITY   = "weather_entity"
+CONF_RAIN_THRESHOLD   = "rain_probability_threshold"
+CONF_STORM_CONDITIONS = "storm_conditions"
+
+DEFAULT_RAIN_THRESHOLD = 40
+DEFAULT_STORM_CONDITIONS = [
+    "rainy", "pouring", "lightning-rainy", "lightning", "hail", "snowy-rainy",
+]
+STORM_CONDITION_OPTIONS = DEFAULT_STORM_CONDITIONS + ["snowy", "windy-variant"]
+
 # Per-valve keys
 CONF_VALVE_NAME       = "name"
 CONF_DEVICE_ID        = "device_id"

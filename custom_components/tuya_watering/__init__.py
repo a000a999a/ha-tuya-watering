@@ -19,6 +19,7 @@ from .const import (
 )
 from .coordinator import WateringCoordinator
 from .lovelace import update_watering_view
+from .schedule_generator import async_ensure_valve_schedule
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -116,6 +117,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # on every entry setup/reload, so adding/editing/removing a valve keeps
     # the dashboard in sync with zero manual steps.
     hass.async_create_task(update_watering_view(hass))
+
+    # Idempotent — only creates whatever Run 1/Run 2 automation/helpers are
+    # still missing for each valve (see schedule_generator.py). Runs on
+    # every setup/reload, same as the dashboard above, so a valve that gets
+    # its Schedule Defaults configured after the fact (e.g. a backfill)
+    # picks up its schedule on the very next reload — no separate one-off
+    # path needed.
+    for valve in entry.options.get(CONF_VALVES, []):
+        hass.async_create_task(async_ensure_valve_schedule(hass, entry, valve))
 
     _LOGGER.info(
         "Tuya Watering loaded: %d valve(s)%s",
