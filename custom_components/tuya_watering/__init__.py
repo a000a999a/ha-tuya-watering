@@ -75,13 +75,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
                 f"on switch.{valve.lower()}."
             )
 
+            # Multiple valve entries commonly share the same notify_entity
+            # (one household mailbox for all valves) — dedupe so a single
+            # skip event doesn't send the same email once per entry.
+            notify_entities = set()
             for entry_data in hass.data.get(DOMAIN, {}).values():
                 cfg_entry = entry_data.get("entry")
                 if not cfg_entry:
                     continue
                 notify_entity = cfg_entry.options.get(CONF_NOTIFY_ENTITY, "").strip()
-                if not notify_entity:
-                    continue
+                if notify_entity:
+                    notify_entities.add(notify_entity)
+
+            for notify_entity in notify_entities:
                 try:
                     # smtp.send_message (not the generic notify.send_message) —
                     # only this one has a separate `html` field. The generic
