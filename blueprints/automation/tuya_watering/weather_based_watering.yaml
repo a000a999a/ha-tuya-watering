@@ -1,29 +1,45 @@
 blueprint:
   name: Weather-Based Watering
   description: >
-    Opens selected valves at a scheduled time, then closes them after the configured
-    duration. Skips automatically when rain probability exceeds the threshold or
-    stormy conditions are forecast for today or tomorrow.
-    Requires the Tuya Watering integration and any HA weather entity.
+    Opens a valve at a scheduled time, then closes it after the configured
+    duration. Skips automatically if any of the next 6 hourly forecast slots
+    has rain probability at or above the threshold, or a stormy condition.
+    Forecast is read fresh at trigger time. On skip, sends an email via
+    tuya_watering.notify_skip (requires a Notify Entity configured on this
+    valve's tuya_watering config entry) and logs to the logbook.
+    Requires the Tuya Watering integration and any HA weather entity that
+    supports hourly forecasts.
   domain: automation
   source_url: https://github.com/a000a999a/ha-tuya-watering/blob/main/blueprints/automation/tuya_watering/weather_based_watering.yaml
 
   input:
     weather_entity:
       name: Weather Entity
-      description: Any HA weather entity (MeteoSwiss, OpenWeatherMap, AccuWeather, etc.)
+      description: Any HA weather entity that supports hourly forecasts (MeteoSwiss, OpenWeatherMap, AccuWeather, etc.)
       selector:
         entity:
           domain: weather
 
-    valve_entities:
-      name: Valve(s)
-      description: One or more valves from the Tuya Watering integration.
+    valve_entity:
+      name: Valve
+      description: The valve from the Tuya Watering integration to control.
       selector:
         entity:
-          multiple: true
           domain: switch
           integration: tuya_watering
+
+    valve_name:
+      name: Valve Name
+      description: Display name used in the skip-notification email (e.g. "Terrasse").
+      selector:
+        text: {}
+
+    run_label:
+      name: Run Label
+      description: Identifies this run in the skip-notification email when a valve has multiple scheduled runs (e.g. "Run 1").
+      default: "Run 1"
+      selector:
+        text: {}
 
     run_time:
       name: Start Time
@@ -43,7 +59,7 @@ blueprint:
 
     rain_probability_threshold:
       name: Rain Probability Threshold (%)
-      description: Skip watering if today's or tomorrow's rain probability is at or above this value.
+      description: Skip watering if any of the next 6 hourly forecast slots has rain probability at or above this value.
       default: 40
       selector:
         number:
@@ -53,7 +69,7 @@ blueprint:
 
     storm_conditions:
       name: Storm Conditions to Skip
-      description: Watering is skipped if today's forecast matches any of these conditions.
+      description: Watering is skipped if any of the next 6 hourly forecast slots matches any of these conditions.
       default:
         - rainy
         - pouring
@@ -80,6 +96,8 @@ trigger:
 
 variables:
   weather_entity:              !input weather_entity
+  valve_name:                  !input valve_name
+  run_label:                   !input run_label
   rain_probability_threshold:  !input rain_probability_threshold
   storm_conditions:            !input storm_conditions
   duration_minutes:            !input duration_minutes
@@ -87,7 +105,7 @@ variables:
 action:
   - action: weather.get_forecasts
     data:
-      type: daily
+      type: hourly
     target:
       entity_id: !input weather_entity
     response_variable: forecast_response
@@ -99,13 +117,10 @@ action:
           {% if not fc or fc | length == 0 %}
             false
           {% else %}
-            {% set today    = fc[0] %}
-            {% set tomorrow = fc[1] if fc | length > 1 else today %}
-            {% set prob_today    = (today.get('precipitation_probability')    or 0) | int %}
-            {% set prob_tomorrow = (tomorrow.get('precipitation_probability') or 0) | int %}
-            {{ today.get('condition', '') not in storm_conditions
-               and prob_today    < rain_probability_threshold
-               and prob_tomorrow < rain_probability_threshold }}
+            {% set slots = fc[:6] %}
+            {% set max_prob = slots | map(attribute='precipitation_probability') | map('default', 0) | map('int', 0) | max %}
+            {% set any_rainy = slots | selectattr('condition', 'in', storm_conditions) | list | length > 0 %}
+            {{ not any_rainy and max_prob < rain_probability_threshold }}
           {% endif %}
 
     then:
@@ -113,26 +128,31 @@ action:
         data:
           duration: "{{ (duration_minutes | float * 60) | int }}"
         target:
-          entity_id: !input valve_entities
+          entity_id: !input valve_entity
 
       - delay:
           minutes: !input duration_minutes
 
       - action: tuya_watering.close_valve
         target:
-          entity_id: !input valve_entities
+          entity_id: !input valve_entity
 
     else:
+      - action: tuya_watering.notify_skip
+        data:
+          valve: "{{ valve_name }}"
+          run: "{{ run_label }}"
+          time: "{{ now().strftime('%H:%M') }}"
+          today_condition: >-
+            {% set fc = forecast_response[weather_entity]['forecast'] %}
+            {{ fc[0].get('condition', '') if fc and fc | length > 0 else '' }}
+          today_rain_pct: >-
+            {% set fc = forecast_response[weather_entity]['forecast'] %}
+            {% set slots = fc[:6] if fc else [] %}
+            {{ (slots | map(attribute='precipitation_probability') | map('default', 0) | map('int', 0) | max) if slots else 0 }}
+          tomorrow_rain_pct: 0
+
       - action: logbook.log
         data:
-          name: Tuya Watering
-          message: >
-            Watering skipped —
-            {% set fc = forecast_response[weather_entity]['forecast'] %}
-            {% if fc and fc | length > 0 %}
-              {% set today = fc[0] %}
-              {% set prob  = (today.get('precipitation_probability') or 0) | int %}
-              condition={{ today.get('condition','?') }}, rain={{ prob }}%
-            {% else %}
-              forecast unavailable
-            {% endif %}
+          name: "Watering {{ valve_name }} - {{ run_label }}"
+          message: Watering skipped - rain probability too high or stormy conditions in next 6h.
