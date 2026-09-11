@@ -34,7 +34,12 @@ from .const import (
     DOMAIN_CORE,
     STORM_CONDITION_OPTIONS,
 )
-from .schedule_generator import async_remove_valve_schedule
+from .schedule_generator import (
+    _RUNS,
+    async_ensure_valve_schedule,
+    async_remove_valve_schedule,
+    slugify,
+)
 from .tuya_discovery import discover_valve_candidates
 
 _MANUAL_ENTRY = "__manual__"
@@ -287,7 +292,11 @@ class TuyaWateringOptionsFlow(OptionsFlow):
             if not valve.get(CONF_VALVE_NAME) or not valve.get(CONF_DEVICE_ID):
                 errors["base"] = "valve_fields_required"
             else:
+                old_name = self._valves[self._edit_index].get(CONF_VALVE_NAME, "")
+                new_name = valve[CONF_VALVE_NAME]
                 self._valves[self._edit_index] = valve
+                if old_name and old_name != new_name:
+                    await self._async_migrate_valve_schedule(old_name, valve)
                 return self.async_create_entry(data={**self._entry.options, CONF_VALVES: self._valves})
 
         return self.async_show_form(
@@ -295,6 +304,44 @@ class TuyaWateringOptionsFlow(OptionsFlow):
             data_schema=_valve_schema(self._import_defaults),
             errors=errors,
         )
+
+    async def _async_migrate_valve_schedule(self, old_valve_name: str, new_valve: dict) -> None:
+        """schedule_generator keys every automation/helper off the valve
+        name's slug, so a rename leaves the old ones behind under the old
+        slug and generates nothing under the new one. Snapshot the live
+        Run 1/Run 2 values, remove the old entities, let
+        async_ensure_valve_schedule recreate them under the new slug (with
+        placeholder defaults), then push the snapshotted values back onto
+        the new helpers — so a rename doesn't reset anyone's configured
+        watering times/durations."""
+        old_slug = slugify(old_valve_name)
+        new_slug = slugify(new_valve[CONF_VALVE_NAME])
+
+        snapshot: dict[str, str] = {}
+        for run_num, _, _ in _RUNS:
+            for kind, domain in (("duration", "input_number"), ("time", "input_datetime")):
+                state = self.hass.states.get(f"{domain}.watering_{old_slug}_run{run_num}_{kind}")
+                if state is not None and state.state not in (None, "unknown", "unavailable"):
+                    snapshot[f"run{run_num}_{kind}"] = state.state
+
+        await async_remove_valve_schedule(self.hass, old_valve_name)
+        await async_ensure_valve_schedule(self.hass, self._entry, new_valve, self._edit_index)
+
+        for run_num, _, _ in _RUNS:
+            duration = snapshot.get(f"run{run_num}_duration")
+            if duration is not None:
+                await self.hass.services.async_call(
+                    "input_number", "set_value", {"value": float(duration)},
+                    target={"entity_id": f"input_number.watering_{new_slug}_run{run_num}_duration"},
+                    blocking=True,
+                )
+            time_value = snapshot.get(f"run{run_num}_time")
+            if time_value is not None:
+                await self.hass.services.async_call(
+                    "input_datetime", "set_datetime", {"time": time_value},
+                    target={"entity_id": f"input_datetime.watering_{new_slug}_run{run_num}_time"},
+                    blocking=True,
+                )
 
     async def async_step_import_device(self, user_input: dict | None = None) -> ConfigFlowResult:
         """Optional detour offered from both Add and Edit: pick a Tuya-discovered

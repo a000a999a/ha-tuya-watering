@@ -124,8 +124,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # its Schedule Defaults configured after the fact (e.g. a backfill)
     # picks up its schedule on the very next reload — no separate one-off
     # path needed.
-    for valve in entry.options.get(CONF_VALVES, []):
-        hass.async_create_task(async_ensure_valve_schedule(hass, entry, valve))
+    for index, valve in enumerate(entry.options.get(CONF_VALVES, [])):
+        hass.async_create_task(async_ensure_valve_schedule(hass, entry, valve, index))
 
     _LOGGER.info(
         "Tuya Watering loaded: %d valve(s)%s",

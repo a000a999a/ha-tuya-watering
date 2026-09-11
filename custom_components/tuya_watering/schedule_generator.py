@@ -41,6 +41,7 @@ from pathlib import Path
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.util.file import write_utf8_file_atomic
 from homeassistant.util.yaml import dump, load_yaml
 
@@ -51,6 +52,7 @@ from .const import (
     CONF_WEATHER_ENTITY,
     DEFAULT_RAIN_THRESHOLD,
     DEFAULT_STORM_CONDITIONS,
+    DOMAIN,
 )
 from .lovelace import update_watering_view
 
@@ -98,6 +100,7 @@ def _save(hass: HomeAssistant, filename: str, data) -> None:
 def _build_automation(
     slug: str, valve_name: str, run_num: int, run_label: str,
     weather_entity: str, threshold: int, storm_conditions: list[str],
+    switch_entity_id: str,
 ) -> dict:
     run_key = f"run{run_num}"
     duration_entity = f"input_number.watering_{slug}_{run_key}_duration"
@@ -147,10 +150,10 @@ def _build_automation(
                     {
                         "action": "tuya_watering.open_valve",
                         "data": {"duration": f"{{{{ (states('{duration_entity}') | float * 60) | int }}}}"},
-                        "target": {"entity_id": f"switch.{slug}"},
+                        "target": {"entity_id": switch_entity_id},
                     },
                     {"delay": {"minutes": f"{{{{ states('{duration_entity}') | int }}}}"}},
-                    {"action": "tuya_watering.close_valve", "target": {"entity_id": f"switch.{slug}"}},
+                    {"action": "tuya_watering.close_valve", "target": {"entity_id": switch_entity_id}},
                 ],
                 "else": [
                     {
@@ -178,7 +181,7 @@ def _build_automation(
     }
 
 
-async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, valve: dict) -> None:
+async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, valve: dict, index: int) -> None:
     """Create whatever Run 1/Run 2 automation + helper entities are missing
     for this valve. Safe to call repeatedly — never duplicates or overwrites
     an existing entry."""
@@ -195,6 +198,25 @@ async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, v
     slug = slugify(valve_name)
     threshold = int(entry.options.get(CONF_RAIN_THRESHOLD, DEFAULT_RAIN_THRESHOLD))
     storm_conditions = list(entry.options.get(CONF_STORM_CONDITIONS, DEFAULT_STORM_CONDITIONS))
+
+    # HA never renames an entity_id when only the friendly name changes, so
+    # the switch keeps its original entity_id (e.g. switch.terrasse) forever
+    # — re-deriving the target from the *current* name's slug would silently
+    # point a freshly (re)generated automation at a switch that doesn't
+    # exist. Resolve the real, live entity_id from the registry by the
+    # switch's unique_id (stable: entry_id + list position) instead. Falls
+    # back to the slug-derived guess only if the switch isn't registered yet
+    # (shouldn't happen — the switch platform is awaited before this runs —
+    # but never block schedule generation on it).
+    unique_id = f"{entry.entry_id}_{index}"
+    switch_entity_id = er.async_get(hass).async_get_entity_id("switch", DOMAIN, unique_id)
+    if switch_entity_id is None:
+        _LOGGER.warning(
+            "tuya_watering: no registered switch found for %s (unique_id %s) — "
+            "falling back to name-derived entity_id switch.%s",
+            valve_name, unique_id, slug,
+        )
+        switch_entity_id = f"switch.{slug}"
 
     async with _LOCK:
         automations = await hass.async_add_executor_job(_load, hass, _AUTOMATIONS_FILE, [])
@@ -214,6 +236,7 @@ async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, v
                 automations.append(_build_automation(
                     slug, valve_name, run_num, run_label,
                     weather_entity, threshold, storm_conditions,
+                    switch_entity_id,
                 ))
                 changed_automations = True
                 _LOGGER.info("tuya_watering: generated automation.%s for %s", automation_id, valve_name)
@@ -276,8 +299,16 @@ async def async_remove_valve_schedule(hass: HomeAssistant, valve_name: str) -> N
 
         new_automations = [a for a in automations if a.get("id") not in ids_to_remove]
         removed_automations = len(new_automations) != len(automations)
-        removed_datetimes = any(input_datetimes.pop(k, None) is not None for k in keys_to_remove)
-        removed_numbers = any(input_numbers.pop(k, None) is not None for k in duration_keys_to_remove)
+        # `any(... for k in keys)` short-circuits on the first truthy pop,
+        # leaving Run 2's helper (or Run 1's) un-popped — a real leak
+        # confirmed live during this feature's own rename testing (renaming
+        # Garden orphaned watering_garden_run2_duration and
+        # watering_garden_run1_time in the YAML). List comprehensions force
+        # every pop to run regardless of earlier results.
+        removed_datetime_keys = [k for k in keys_to_remove if input_datetimes.pop(k, None) is not None]
+        removed_number_keys = [k for k in duration_keys_to_remove if input_numbers.pop(k, None) is not None]
+        removed_datetimes = bool(removed_datetime_keys)
+        removed_numbers = bool(removed_number_keys)
 
         if removed_automations:
             _LOGGER.info("tuya_watering: removed generated automation(s) for %s", valve_name)

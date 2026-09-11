@@ -79,6 +79,20 @@ Choose your Tuya Home Core entry (auto-selected if only one exists).
 ### Adding more valves
 Go to **Settings → Devices & Services → Tuya Watering → Configure → Add a valve**.
 
+### Editing a valve
+Go to **Settings → Devices & Services → Tuya Watering → Configure → Edit a valve**,
+pick the valve, then change whichever fields need updating. The form shows
+the valve's current values, so you're editing in place rather than
+re-entering everything.
+
+**Renaming a valve** (changing just the Valve name field) is handled
+specially: the Run 1/Run 2 automation and helper entities are keyed by the
+valve's name, so renaming moves them to match — your configured start times
+and durations carry over, they aren't reset to placeholders. The switch
+entity itself is unaffected by a rename (Home Assistant doesn't change an
+entity's `entity_id` when only its friendly name changes), and the moved
+automations keep targeting the correct switch automatically.
+
 ## Automation Blueprints
 
 Import from **Settings → Automations → Blueprints → Import Blueprint**.
