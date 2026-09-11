@@ -225,6 +225,10 @@ async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, v
 
         existing_automation_ids = {a.get("id") for a in automations}
         changed_automations = changed_datetimes = changed_numbers = False
+        # (service, entity_id, data) for helpers created this call — pushed
+        # as live state *after* creation rather than baked into config as
+        # "initial" (see note below).
+        new_helper_defaults: list[tuple[str, str, dict]] = []
 
         for run_num, run_label, default_time in _RUNS:
             run_key = f"run{run_num}"
@@ -242,15 +246,27 @@ async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, v
                 _LOGGER.info("tuya_watering: generated automation.%s for %s", automation_id, valve_name)
 
             if time_key not in input_datetimes:
+                # No "initial" key here on purpose — HA's input_datetime
+                # treats "initial" as winning over restored state on every
+                # single restart, not just first creation (confirmed live:
+                # a restart reset a real configured value back to this
+                # placeholder). Push the default as live state instead,
+                # below, after the entity actually exists — then every
+                # subsequent restart restores the user's real value via
+                # RestoreEntity, same as the hand-written Terrasse/Keller
+                # helpers that predate this generator already do.
                 input_datetimes[time_key] = {
                     "name": f"{valve_name} {run_label} Start Time",
                     "has_time": True,
                     "has_date": False,
-                    "initial": default_time,
                 }
                 changed_datetimes = True
+                new_helper_defaults.append((
+                    "input_datetime", f"input_datetime.{time_key}", {"time": default_time},
+                ))
 
             if duration_key not in input_numbers:
+                # Same "no initial" reasoning as above.
                 input_numbers[duration_key] = {
                     "name": f"{valve_name} {run_label} Duration",
                     "min": 1,
@@ -258,9 +274,11 @@ async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, v
                     "step": 1,
                     "unit_of_measurement": "min",
                     "icon": "mdi:timer",
-                    "initial": _DEFAULT_DURATION_MIN,
                 }
                 changed_numbers = True
+                new_helper_defaults.append((
+                    "input_number", f"input_number.{duration_key}", {"value": _DEFAULT_DURATION_MIN},
+                ))
 
         if changed_automations:
             await hass.async_add_executor_job(_save, hass, _AUTOMATIONS_FILE, automations)
@@ -271,6 +289,15 @@ async def async_ensure_valve_schedule(hass: HomeAssistant, entry: ConfigEntry, v
         if changed_numbers:
             await hass.async_add_executor_job(_save, hass, _INPUT_NUMBER_FILE, input_numbers)
             await hass.services.async_call("input_number", "reload", blocking=True)
+
+        # Helpers now exist (reloads above are blocking) — seed each
+        # freshly created one with its friendly default via set_value/
+        # set_datetime, which only touches live state, never the YAML.
+        for domain, entity_id, data in new_helper_defaults:
+            service = "set_value" if domain == "input_number" else "set_datetime"
+            await hass.services.async_call(
+                domain, service, data, target={"entity_id": entity_id}, blocking=True,
+            )
 
         # Reload services above are blocking, so by this point the new entities
         # already exist in hass.states — safe to refresh the schedule card now.
