@@ -21,7 +21,7 @@ like in production:
   convention (e.g. watering_terrasse_run1). The "watering" requirement
   exists because a valve's slug alone is not unique enough — an unrelated
   automation for the same physical area (e.g. a camera motion alert named
-  "Winti Terrasse - ...") can share the valve's name as a word without
+  "Home Terrasse - ...") can share the valve's name as a word without
   being a watering schedule entity at all. A valve with none yet (e.g.
   freshly added, no schedule configured) simply doesn't contribute rows;
   the whole card is omitted if no valve has anything to show yet.
