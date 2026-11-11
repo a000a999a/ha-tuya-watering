@@ -46,6 +46,11 @@ is fine in practice).
 
 > Any Tuya Zigbee timer valve should work if you know its DPS codes — see [DPS codes for common valves](#dps-codes-for-common-valves) below to configure a different model.
 
+For the machine that runs Home Assistant, see
+[Hardware recommendations](https://github.com/a000a999a/ha-tuya-home-core#hardware-recommendations).
+Watering itself needs no extra hardware power, but the gateway must be on the same local network
+as Home Assistant.
+
 ## Installation via HACS
 
 1. Install **Tuya Home Core** first
